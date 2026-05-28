@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GBS Broker — Таможенный калькулятор</title>
+<script src="https://cdn.jsdelivr.net/npm/docx@9.0.2/build/index.umd.js"></script>
+<style>
+:root {
+  --inp:#FEF3E0; --inp-b:#D4922A;
+  --calc:#EEF5FC; --calc-b:#5A9ACB; --calc-t:#0C447C;
+  --auto:#F5F3EF; --auto-b:#D6D3CC; --auto-t:#888780;
+  --muted:#888780; --border:#E0DDD6;
+  --gbs:#2A87C7;
+  --bg:#F5F4F0;
+  --surface:#FFFFFF;
+  --surface2:#F0EFE9;
+  --text:#1A1A18;
+  --text2:#5F5E5A;
+  --radius:10px;
+  --radius-sm:6px;
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#1C1C1A; --surface:#252523; --surface2:#2E2E2B;
+    --text:#F0EFE9; --text2:#A8A79F;
+    --inp:#2A2500; --inp-b:#8A6010;
+    --calc:#0C1E33; --calc-b:#3A6A9A; --calc-t:#7ABAEB;
+    --auto:#2A2A27; --auto-b:#555550; --auto-t:#888780;
+    --border:#3A3A35;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh;}
+
+.page{max-width:960px;margin:0 auto;padding:1.5rem 1rem 3rem;}
+
+/* HEADER */
+.gbs-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.gbs-header-left{display:flex;align-items:center;gap:14px;}
+.gbs-title{font-size:16px;font-weight:600;color:var(--text);}
+.gbs-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.gbs-badge{font-size:10px;font-weight:500;padding:3px 10px;border-radius:10px;background:#E3F0FA;color:var(--gbs);border:0.5px solid #B5D5EF;}
+
+.section{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+.sec-head{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:0.5px solid var(--border);background:var(--surface2);}
+.sec-num{width:22px;height:22px;border-radius:50%;background:var(--text2);color:var(--surface);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;}
+.sec-title{font-size:13px;font-weight:500;}
+.sec-body{padding:12px 16px;}
+.row{display:flex;gap:10px;margin-bottom:10px;align-items:flex-end;flex-wrap:wrap;}
+.row:last-child{margin-bottom:0;}
+.field{flex:1;min-width:100px;}
+.flabel{font-size:11px;color:var(--muted);margin-bottom:4px;white-space:nowrap;}
+input.inp,select.inp{display:block;width:100%;border-radius:var(--radius-sm);padding:6px 10px;font-size:13px;border:1px solid var(--inp-b);background:var(--inp);color:var(--text);outline:none;font-family:inherit;min-height:32px;-webkit-appearance:none;}
+input.inp:focus,select.inp:focus{border-color:#A06010;box-shadow:0 0 0 2px rgba(212,146,42,.15);}
+input.inp::placeholder{color:#C4A06A;}
+input.calc{display:block;width:100%;border-radius:var(--radius-sm);padding:6px 10px;font-size:13px;font-weight:500;border:1px solid var(--calc-b);background:var(--calc);color:var(--calc-t);outline:none;font-family:inherit;min-height:32px;pointer-events:none;-webkit-appearance:none;}
+.divider{height:0.5px;background:var(--border);margin:10px 0;}
+.blk{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;}
+.hint{padding:7px 12px;font-size:12px;margin-top:8px;border-left:3px solid transparent;border-radius:0 var(--radius-sm) var(--radius-sm) 0;}
+.hint.info{background:#E6F1FB;border-left-color:#5A9ACB;color:#0C447C;}
+
+/* Курсы */
+.rates-grid{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+.rate-item{flex:1;min-width:100px;}
+.rate-live{font-size:11px;color:var(--gbs);font-weight:500;margin-bottom:4px;min-height:16px;}
+.date-toggle{font-size:11px;padding:4px 10px;border-radius:5px;border:0.5px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;font-family:inherit;}
+.date-toggle.on{background:#E3F0FA;border-color:var(--gbs);color:var(--gbs);font-weight:500;}
+.btn-refresh{font-size:11px;padding:5px 12px;border-radius:5px;border:0.5px solid var(--gbs);background:#E3F0FA;color:var(--gbs);cursor:pointer;font-family:inherit;font-weight:500;}
+.btn-refresh:hover{background:#C8E3F5;}
+.rate-status{font-size:11px;color:var(--muted);font-style:italic;}
+
+/* Радиоэлектроника */
+.elec-row{display:flex;align-items:center;gap:10px;padding:9px 16px;background:var(--surface2);border-top:0.5px solid var(--border);}
+.toggle-wrap{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
+.toggle-track{width:38px;height:21px;border-radius:11px;background:var(--auto-b);position:relative;transition:background .2s;flex-shrink:0;}
+.toggle-track.on{background:var(--gbs);}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:15px;height:15px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.25);}
+.toggle-track.on .toggle-thumb{left:20px;}
+.toggle-label{font-size:12px;font-weight:500;color:var(--text);}
+.toggle-sub{font-size:11px;color:var(--muted);margin-left:auto;}
+.elec-note{display:none;margin:0 16px 10px;padding:7px 12px;font-size:12px;background:#FEF3E0;border-left:3px solid #D4922A;border-radius:0 var(--radius-sm) var(--radius-sm) 0;color:#633806;}
+.elec-note.show{display:block;}
+
+/* Таблица */
+.goods-table{width:100%;border-collapse:collapse;}
+.goods-table th{font-size:11px;font-weight:500;color:var(--muted);padding:5px 6px;border-bottom:0.5px solid var(--border);background:var(--auto);white-space:nowrap;}
+.goods-table td{padding:4px 5px;vertical-align:middle;border-bottom:0.5px solid var(--border);}
+.goods-table tr:last-child td{border-bottom:none;}
+.goods-table td.num{text-align:center;font-size:11px;color:var(--muted);background:var(--auto);width:24px;}
+.tfoot{display:flex;gap:14px;padding:8px 16px;background:var(--auto);border-top:0.5px solid var(--border);font-size:12px;flex-wrap:wrap;align-items:center;}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
+.kpi{border-radius:var(--radius-sm);padding:10px 12px;border:0.5px solid var(--border);background:var(--surface2);}
+.kpi-lbl{font-size:11px;color:var(--muted);margin-bottom:3px;}
+.kpi-val{font-size:16px;font-weight:600;color:var(--calc-t);}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:2px;}
+.kpi.green{background:#EAF3DE;border-color:#97C459;}
+.kpi.green .kpi-val{color:#27500A;font-size:19px;}
+.kpi.green .kpi-lbl{color:#3B6D11;}
+
+.tag{font-size:9px;font-weight:500;padding:1px 5px;border-radius:10px;vertical-align:middle;}
+.t-in{background:#FAC775;color:#633806;}
+.t-calc{background:#B5D4F4;color:#0C447C;}
+.add-btn{font-size:12px;padding:5px 12px;border-radius:var(--radius-sm);border:1px solid var(--inp-b);background:var(--inp);color:#633806;cursor:pointer;font-weight:500;font-family:inherit;}
+.add-btn:hover{background:#FCDFA0;}
+.del-btn{font-size:12px;padding:3px 8px;border-radius:4px;border:0.5px solid var(--border);background:var(--auto);color:var(--muted);cursor:pointer;font-family:inherit;}
+.del-btn:hover{background:#FCEBEB;border-color:#F09595;color:#791F1F;}
+
+.legend-bar{display:flex;gap:12px;padding:8px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-sm);margin-bottom:12px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--muted);}
+.swatch{width:10px;height:10px;border-radius:2px;display:inline-block;}
+.formula-box{background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-size:11px;color:var(--muted);margin-top:10px;line-height:1.9;}
+.fts-note{font-size:10px;color:var(--muted);margin-top:5px;font-style:italic;}
+
+/* Toolbar */
+.toolbar{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px;background:var(--surface2);border-bottom:0.5px solid var(--border);}
+.tb-btn{font-size:11px;padding:5px 11px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-family:inherit;white-space:nowrap;}
+.tb-btn:hover{background:var(--surface2);}
+.tb-btn.primary{background:#EEF5FC;border-color:#5A9ACB;color:#0C447C;}
+.tb-btn.danger{background:#FCEBEB;border-color:#F09595;color:#791F1F;}
+.history-panel{display:none;padding:10px 16px;border-bottom:0.5px solid var(--border);}
+.history-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);}
+.history-item:last-child{border-bottom:none;}
+.history-name{flex:1;font-size:12px;font-weight:500;}
+.history-meta{font-size:11px;color:var(--muted);}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center;}
+.modal{background:var(--surface);border-radius:var(--radius);border:0.5px solid var(--border);padding:22px;min-width:300px;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.15);}
+.modal h3{font-size:15px;font-weight:600;margin-bottom:14px;}
+.modal input{display:block;width:100%;border-radius:var(--radius-sm);padding:7px 11px;font-size:13px;border:0.5px solid var(--border);background:var(--surface2);color:var(--text);outline:none;font-family:inherit;margin-bottom:14px;}
+.modal input:focus{border-color:#5A9ACB;}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;}
+.link-box{font-size:11px;padding:8px 11px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--radius-sm);word-break:break-all;margin-bottom:14px;color:var(--muted);max-height:90px;overflow:auto;}
+
+@media print{
+  body{background:#fff;}
+  .toolbar,.legend-bar,.add-btn,.del-btn,.history-panel,.gbs-header .tb-btn{display:none!important;}
+  .section{border:1px solid #ccc;margin-bottom:8px;box-shadow:none;}
+  .kpi{border:1px solid #ccc;}
+  .page{padding:0;}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- HEADER -->
+<div class="gbs-header">
+  <div class="gbs-header-left">
+    <svg width="52" height="41" viewBox="0 0 2720 2159" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1079 2142C1665.8 2142 2141.5 1666.3 2141.5 1079.5C2141.5 492.697 1665.8 17 1079 17C492.197 17 16.5 492.697 16.5 1079.5C16.5 1666.3 492.197 2142 1079 2142Z" stroke="#2A87C7" stroke-width="33" stroke-miterlimit="10"/>
+      <path d="M1520.5 499.6C1552.09 499.6 1577.7 473.991 1577.7 442.4C1577.7 410.809 1552.09 385.2 1520.5 385.2C1488.91 385.2 1463.3 410.809 1463.3 442.4C1463.3 473.991 1488.91 499.6 1520.5 499.6Z" fill="#2A87C7" stroke="#2A87C7" stroke-width="33"/>
+      <path d="M1319.6 1292.3C1351.19 1292.3 1376.8 1266.69 1376.8 1235.1C1376.8 1203.51 1351.19 1177.9 1319.6 1177.9C1288.01 1177.9 1262.4 1203.51 1262.4 1235.1C1262.4 1266.69 1288.01 1292.3 1319.6 1292.3Z" fill="#2A87C7" stroke="#2A87C7" stroke-width="33"/>
+      <path d="M163.5 1363.8C195.091 1363.8 220.7 1338.19 220.7 1306.6C220.7 1275.01 195.091 1249.4 163.5 1249.4C131.909 1249.4 106.3 1275.01 106.3 1306.6C106.3 1338.19 131.909 1363.8 163.5 1363.8Z" fill="#2A87C7" stroke="#2A87C7" stroke-width="33"/>
+      <path d="M1041.9 1813.2C1073.49 1813.2 1099.1 1787.59 1099.1 1756C1099.1 1724.41 1073.49 1698.8 1041.9 1698.8C1010.31 1698.8 984.7 1724.41 984.7 1756C984.7 1787.59 1010.31 1813.2 1041.9 1813.2Z" fill="#2A87C7" stroke="#2A87C7" stroke-width="33"/>
+      <path d="M1730.7 1542.5C1762.29 1542.5 1787.9 1516.89 1787.9 1485.3C1787.9 1453.71 1762.29 1428.1 1730.7 1428.1C1699.11 1428.1 1673.5 1453.71 1673.5 1485.3C1673.5 1516.89 1699.11 1542.5 1730.7 1542.5Z" fill="#2A87C7" stroke="#2A87C7" stroke-width="33"/>
+      <path d="M1730.7 1485.3C1686.4 1523.4 1312.6 1833.6 800.1 1730.4C259.6 1621.6 37.5 1148.1 16.8 1101.8" stroke="#2A87C7" stroke-width="33"/>
+      <path d="M1100.6 17.2C1171.8 60.6 1651.1 364.3 1753.4 981.4C1850.7 1568.3 1533.4 1994.1 1479.6 2063.9" stroke="#2A87C7" stroke-width="33"/>
+      <path d="M1028.7 2140.9C1013.2 2049.4 995.9 1873.3 1058.7 1667.3C1073.4 1619 1139 1416.3 1319.6 1235.2C1627.3 926.7 2033.6 916.7 2129.1 916.8" stroke="#2A87C7" stroke-width="33"/>
+      <path d="M1535.9 120C1542.2 166.3 1606.8 710.3 1191 1083.7C881.6 1361.6 429.7 1434 33.4 1269.6" stroke="#2A87C7" stroke-width="33"/>
+      <path d="M978 21.7C869.7 67.8 555.9 217.8 345.8 575.4C163.3 886.3 158.7 1184.5 163.5 1306.6" stroke="#2A87C7" stroke-width="33"/>
+      <path d="M2482.6 1947.9C2439.5 1948.7 2406.4 1945.3 2376.3 1934.2C2355.2 1926.5 2342.5 1918.4 2336.8 1914.5C2316.5 1900.4 2305.4 1885.2 2298.9 1876.1C2297.1 1873.6 2286.3 1858.3 2279.4 1836.2C2275.4 1823.5 2275.7 1818.6 2278.6 1815.6C2283.2 1810.8 2294.6 1813.1 2307.5 1812.6C2329.7 1812.6 2362.7 1812.7 2372.6 1812.7C2373.9 1813 2379.9 1811.6 2387.3 1818.3C2405.3 1851.4 2446.8 1846.5 2478.6 1846.3C2518.8 1844.5 2541.1 1845 2559.6 1827.3C2605 1767 2444.1 1760.7 2409.5 1747.2C2365.8 1735.9 2323.5 1720 2297.5 1686.4C2279 1663.8 2273.1 1632.3 2276.7 1600.4C2285 1535.5 2339.8 1497.1 2399.2 1479.9C2465.2 1462.6 2559.6 1459.7 2616.7 1486.8C2638.1 1497 2655.6 1509 2655.6 1509C2667.5 1517.8 2676.4 1526.6 2682.6 1533.5C2688 1539.7 2694.7 1548.8 2700 1560.8C2706.6 1575.8 2708.2 1589.3 2708.4 1598.1C2705.4 1607.4 2692.8 1603.8 2684 1604.5C2660 1604.5 2636.8 1604.5 2612.8 1604.6C2583.3 1599.1 2606.5 1581.3 2553.8 1571.8C2501 1564.9 2437.6 1567.2 2422.2 1596.7C2396.5 1648.4 2513 1653.4 2546.4 1663.2C2592.9 1673.5 2641.5 1685.6 2676.1 1716.4C2708.3 1744.5 2717 1788.4 2707.1 1828.5C2682.1 1922.5 2565.9 1950.8 2482.6 1947.9Z" fill="#2A87C7"/>
+      <path d="M2691.7 1118.9C2673 1090.2 2647.5 1078.4 2637.5 1073.9L2636.7 1073.5C2634 1072.3 2633.6 1068.4 2635.9 1066.5C2664.4 1043.4 2671.9 1031.6 2671.9 1031.6C2686.4 1001.1 2689.6 984.5 2689.6 966.3C2689.6 929.2 2675.3 899 2646.7 875.6C2618.1 852.2 2574.6 840.6 2516.2 840.6H2295.4C2293.3 840.6 2291.7 842.4 2291.7 844.7V1317.6C2291.7 1319.8 2293.4 1321.7 2295.4 1321.7H2528.8C2588.5 1321.7 2633.8 1310 2664.7 1286.7C2695.6 1263.3 2711 1231 2711 1189.8C2711 1162.2 2704.6 1138.6 2691.7 1118.9ZM2416.5 943C2416.5 940.8 2418.2 938.9 2420.2 938.9H2502.2C2523.2 938.9 2539 942.7 2549.5 950.2C2560 957.8 2565.3 969.6 2565.3 985.6C2565.3 1002.4 2559.6 1008.8 2549.5 1019.9C2532.8 1032.8 2508.5 1031.9 2502.2 1031.6H2420.2C2418.1 1031.6 2416.5 1029.8 2416.5 1027.5V943ZM2570.4 1211.4C2559.5 1219.4 2543.1 1223.4 2521.2 1223.4H2420.2C2418.1 1223.4 2416.5 1221.6 2416.5 1219.3V1129.8C2416.5 1127.6 2418.2 1125.7 2420.2 1125.7H2521.2C2553.4 1124.7 2570.4 1137.7 2579.8 1147.6C2584.5 1154.8 2586.8 1163.7 2586.8 1174.5C2586.8 1191.1 2581.3 1203.3 2570.4 1211.4Z" fill="#2A87C7"/>
+      <path d="M2719.3 517.7V518C2719.3 557 2719.3 596 2719.3 635V647.1C2719.3 652.2 2717 655.2 2710.3 660.8C2681 677.5 2656 689.4 2624.8 698.7C2574.9 713.5 2534.4 713.9 2520 713.9C2482 713.9 2447.2 708.1 2415.6 696.4C2384 684.7 2356.4 668.2 2332.9 646.9C2309.4 625.6 2291.1 600.1 2278 570.7C2264.9 541.2 2258.3 508.9 2258.3 473.7C2258.3 438.5 2264.8 406.2 2278 376.7C2291.1 347.2 2309.5 321.8 2333.3 300.5C2366.6 270.5 2417 251 2417 251C2461.7 235.3 2498.9 236.6 2523 237.6C2541 238.4 2580.7 240.2 2621.5 258C2661.8 281 2690.8 307.1 2704.2 327.3C2710.7 341 2722.8 369 2713.5 377.2C2708.4 379.4 2705.7 379.4 2615.4 379.5C2601.7 370.7 2596.7 362.999 2591.7 358.9C2566.1 348.3 2538.9 343.9 2523.5 343.5C2507.2 342.8 2473.9 351 2473.9 351C2419.4 389.4 2394 453.9 2394 473.7C2394 510.9 2403.8 527.2 2403.8 527.2C2443 580.8 2508.3 605.8 2528.2 605.8C2545.3 605.2 2553.8 604 2586.6 596.2C2597.5 589.4 2599.6 585.6 2600.2 580.2C2599.8 577.5 2599.7 566.4 2599.7 537.2C2594.8 527.1 2590.7 527.8 2523.5 527.8C2518.7 527.2 2516.2 524.8 2513.2 517.5V444.1C2513.2 438.4 2517.8 433.8 2523.5 433.8H2709C2714.7 433.8 2719.3 438.4 2719.3 444.1C2719.4 468.5 2719.4 493.1 2719.3 517.7Z" fill="#2A87C7"/>
+    </svg>
+    <div>
+      <div class="gbs-title">Калькулятор таможенных платежей</div>
+      <div class="gbs-sub">GBS Broker &nbsp;·&nbsp; gbs-broker.ru</div>
+    </div>
+  </div>
+  <span class="gbs-badge">с 01.01.2026</span>
+</div>
+
+<!-- TOOLBAR -->
+<div class="section" style="margin-bottom:14px;">
+  <div class="toolbar">
+    <button class="tb-btn primary" onclick="openSaveModal()">💾 Сохранить</button>
+    <button class="tb-btn" onclick="toggleHistory()">🔖 История</button>
+    <button class="tb-btn" onclick="exportJSON()">↓ JSON</button>
+    <button class="tb-btn" onclick="document.getElementById('import-file').click()">↑ Загрузить JSON</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)">
+    <button class="tb-btn" onclick="copyLink()">🔗 Ссылка</button>
+    <button class="tb-btn" onclick="window.print()">🖨 Печать / PDF</button>
+    <button class="tb-btn" onclick="exportWord()">📄 Word (.docx)</button>
+    <button class="tb-btn danger" onclick="clearAll()">✕ Очистить</button>
+  </div>
+  <div class="history-panel" id="history-panel">
+    <div class="blk" style="margin-bottom:8px;">Сохранённые расчёты</div>
+    <div id="history-list"><span style="font-size:12px;color:var(--muted);">Пусто</span></div>
+  </div>
+</div>
+
+<div class="legend-bar">
+  <b style="font-size:11px;">Обозначения:</b>
+  <span><span class="swatch" style="background:#FEF3E0;border:1px solid #D4922A;"></span> Вводишь</span>
+  <span><span class="swatch" style="background:#F5F3EF;border:1px solid #D6D3CC;"></span> Авто</span>
+  <span><span class="swatch" style="background:#EEF5FC;border:1px solid #5A9ACB;"></span> Результат</span>
+</div>
+
+<!-- ШАГ 1 -->
+<div class="section">
+  <div class="sec-head"><div class="sec-num">1</div><div class="sec-title">Параметры поставки</div></div>
+  <div class="sec-body">
+    <div class="row">
+      <div class="field" style="flex:.6"><div class="flabel">Название расчёта</div><input class="inp" id="calc-name" placeholder="напр. партия 2026-01"></div>
+      <div class="field" style="flex:.4"><div class="flabel">Валюта</div>
+        <select class="inp" id="currency" onchange="recalc()">
+          <option value="usd">USD</option><option value="cny">CNY</option><option value="eur">EUR</option>
+        </select>
+      </div>
+      <div class="field" style="flex:.5"><div class="flabel">Инкотермс</div>
+        <select class="inp" id="incoterms" onchange="recalc()">
+          <option value="EXW">EXW — с завода</option>
+          <option value="FOB">FOB — франко-борт</option>
+          <option value="CIF">CIF — стоим.+страх+фрахт</option>
+          <option value="DAP">DAP/DDP — с доставкой</option>
+        </select>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="blk">Курс ЦБ — автозагрузка или ввод вручную</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+      <button class="date-toggle on" id="toggle-today" onclick="setDateMode('today',this)">Сегодня</button>
+      <button class="date-toggle" id="toggle-date" onclick="setDateMode('date',this)">Выбрать дату</button>
+      <input type="date" id="rate-date" style="display:none;font-size:12px;padding:4px 10px;border:0.5px solid var(--border);border-radius:5px;background:var(--surface2);color:var(--text);font-family:inherit;" onchange="fetchRates()" onclick="this.showPicker&amp;&amp;this.showPicker()">
+      <button class="btn-refresh" onclick="fetchRates()">↻ Обновить</button>
+      <span class="rate-status" id="rate-status"></span>
+    </div>
+    <div class="rates-grid">
+      <div class="rate-item">
+        <div class="rate-live" id="disp-usd">—</div>
+        <div class="flabel">USD / ₽ <span class="tag t-in">ввод</span></div>
+        <input class="inp" id="rateUSD" placeholder="87.50" oninput="recalc()">
+      </div>
+      <div class="rate-item">
+        <div class="rate-live" id="disp-cny">—</div>
+        <div class="flabel">CNY / ₽ <span class="tag t-in">ввод</span></div>
+        <input class="inp" id="rateCNY" placeholder="12.00" oninput="recalc()">
+      </div>
+      <div class="rate-item">
+        <div class="rate-live" id="disp-eur">—</div>
+        <div class="flabel">EUR / ₽ <span class="tag t-in">ввод</span></div>
+        <input class="inp" id="rateEUR" placeholder="95.00" oninput="recalc()">
+      </div>
+      <div class="rate-item" style="flex:0.6;">
+        <div class="flabel">Источник</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:5px;" id="rate-source">—</div>
+      </div>
+    </div>
+    <div class="hint info" style="margin-top:10px;">Инкотермс: EXW — 100% фрахта, FOB — ~70%, CIF/DAP — 0%.</div>
+  </div>
+</div>
+
+<!-- ШАГ 2 -->
+<div class="section">
+  <div class="sec-head"><div class="sec-num">2</div><div class="sec-title">Товары</div></div>
+  <div style="overflow-x:auto;">
+    <table class="goods-table">
+      <thead><tr>
+        <th style="width:24px;">#</th>
+        <th style="min-width:150px;">Наименование</th>
+        <th style="width:90px;">Код ТН ВЭД</th>
+        <th style="width:78px;">Цена</th>
+        <th style="width:54px;">Кол-во</th>
+        <th style="width:74px;">Итого</th>
+        <th style="width:60px;">Вес,кг</th>
+        <th style="width:64px;">Пошл,%</th>
+        <th style="width:66px;">НДС,%</th>
+        <th style="width:24px;"></th>
+      </tr></thead>
+      <tbody id="goods-body"></tbody>
+    </table>
+  </div>
+  <div class="tfoot">
+    <span>Поз.: <b id="f-cnt">0</b></span>
+    <span>Вес: <b id="f-w">—</b></span>
+    <span>Инвойс: <b id="f-inv" style="color:#0C447C;">—</b></span>
+    <span>Пошл.+НДС: <b id="f-duties" style="color:#0C447C;">—</b></span>
+    <span style="margin-left:auto;"><button class="add-btn" onclick="addGood()">+ позицию</button></span>
+  </div>
+  <div class="elec-row">
+    <div class="toggle-wrap" onclick="toggleElec()">
+      <div class="toggle-track" id="elec-track"><div class="toggle-thumb"></div></div>
+      <span class="toggle-label">Радиоэлектронная продукция</span>
+    </div>
+    <span class="toggle-sub" id="elec-sub">сбор ФТС по шкале</span>
+  </div>
+  <div class="elec-note" id="elec-note">Радиоэлектроника: сбор ФТС = <b>73 860 ₽</b> фиксированно — вне зависимости от таможенной стоимости (ПП № 1638 от 23.10.2025).</div>
+</div>
+
+<!-- ШАГ 3 -->
+<div class="section">
+  <div class="sec-head"><div class="sec-num">3</div><div class="sec-title">Расходы в тамож. стоимость</div></div>
+  <div class="sec-body">
+    <div class="blk">Транспорт до границы ЕАЭС (в валюте инвойса)</div>
+    <div class="row">
+      <div class="field"><div class="flabel">Фрахт <span class="tag t-in">ввод</span></div><input class="inp" id="transport" placeholder="0" oninput="recalc()"></div>
+      <div class="field"><div class="flabel">= в рублях <span class="tag t-calc">авто</span></div><input class="calc" id="transport-rub" readonly placeholder="—"></div>
+      <div class="field"><div class="flabel">Распределение</div>
+        <select class="inp" id="transport-alloc" onchange="recalc()">
+          <option value="weight">По весу</option><option value="cost">По стоимости</option>
+        </select>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="blk">Страховка и услуги (% от инвойса в ₽)</div>
+    <div class="row">
+      <div class="field"><div class="flabel">Страховка, % <span class="tag t-in">если есть</span></div><input class="inp" id="insurance-pct" placeholder="0.15" oninput="recalc()"></div>
+      <div class="field"><div class="flabel">= сумма <span class="tag t-calc">авто</span></div><input class="calc" id="insurance-sum" readonly placeholder="—"></div>
+      <div class="field"><div class="flabel">Фин. агент, % <span class="tag t-in">если есть</span></div><input class="inp" id="agent-pct" placeholder="2.5" oninput="recalc()"></div>
+      <div class="field"><div class="flabel">= сумма <span class="tag t-calc">авто</span></div><input class="calc" id="agent-sum" readonly placeholder="—"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ШАГ 4 -->
+<div class="section">
+  <div class="sec-head" style="background:#EEF5FC;border-bottom-color:#5A9ACB;">
+    <div class="sec-num" style="background:#0C447C;">4</div>
+    <div class="sec-title" style="color:#0C447C;">Таможенная стоимость и платежи</div>
+  </div>
+  <div class="sec-body">
+    <div class="kpi-grid" style="margin-bottom:12px;">
+      <div class="kpi"><div class="kpi-lbl">Тамож. стоимость</div><div class="kpi-val" id="kpi-cv">—</div><div class="kpi-sub">инв+фрахт+страх+агент</div></div>
+      <div class="kpi"><div class="kpi-lbl">Пошлина</div><div class="kpi-val" id="kpi-duty">—</div><div class="kpi-sub">от там. стоимости</div></div>
+      <div class="kpi"><div class="kpi-lbl">НДС при ввозе</div><div class="kpi-val" id="kpi-vat">—</div><div class="kpi-sub">(там.ст.+пошл) × 22%</div></div>
+      <div class="kpi"><div class="kpi-lbl">Сбор ФТС</div><div class="kpi-val" id="kpi-fee">—</div><div class="kpi-sub" id="kpi-fee-sub">пост. №1638</div></div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi green" style="grid-column:span 2;"><div class="kpi-lbl">Итого таможенные платежи</div><div class="kpi-val" id="kpi-total">—</div><div class="kpi-sub">пошлина + НДС + сбор ФТС</div></div>
+      <div class="kpi green" style="grid-column:span 2;"><div class="kpi-lbl">Общая сумма (инвойс + таможня)</div><div class="kpi-val" id="kpi-grand">—</div><div class="kpi-sub">инвойс ₽ + все там. платежи</div></div>
+    </div>
+    <div class="fts-note">НДС — ФЗ №425-ФЗ от 28.11.2025 (22%/10%/0%). &nbsp;·&nbsp; Сбор ФТС — ПП №1638 от 23.10.2025: 1 231—73 860 ₽. Радиоэлектроника: 73 860 ₽ фикс.</div>
+    <div class="divider"></div>
+    <div class="blk">Детализация по позициям</div>
+    <div id="detail-block"></div>
+    <div class="formula-box">
+      Там. стоимость = инвойс×курс + фрахт×курс + инв.×к.×%страх + инв.×к.×%агент ·
+      Пошлина = там.ст.×% · НДС = (там.ст.+пошл.)×%НДС · Сбор ФТС — шкала ПП №1638
+    </div>
+  </div>
+</div>
+
+</div><!-- /page -->
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-save" style="display:none;">
+  <div class="modal">
+    <h3>Сохранить расчёт</h3>
+    <input id="save-name" placeholder="Название">
+    <div class="modal-btns">
+      <button class="tb-btn" onclick="closeModal('modal-save')">Отмена</button>
+      <button class="tb-btn primary" onclick="saveToHistory()">Сохранить</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-link" style="display:none;">
+  <div class="modal">
+    <h3>Ссылка с данными</h3>
+    <div class="link-box" id="link-box"></div>
+    <div class="modal-btns">
+      <button class="tb-btn" onclick="closeModal('modal-link')">Закрыть</button>
+      <button class="tb-btn primary" onclick="doCopyLink()">Скопировать</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var DEFAULT_VAT=22,VAT_OPTIONS=[0,10,22];
+var goods=[{name:'',tnved:'',price:0,qty:1,weight:0,duty:0,vat:DEFAULT_VAT}];
+var lastResult={};
+var isElec=false;
+var dateMode='today';
+
+function addGood(){goods.push({name:'',tnved:'',price:0,qty:1,weight:0,duty:0,vat:DEFAULT_VAT});buildTable();recalc();}
+function removeGood(i){if(goods.length===1)return;goods.splice(i,1);buildTable();recalc();}
+function fmtR(n){return new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB',maximumFractionDigits:0}).format(n);}
+function fmt2(n){return n.toLocaleString('ru-RU',{maximumFractionDigits:2});}
+function vn(id){return parseFloat(document.getElementById(id).value.replace(/\s/g,'').replace(',','.'))||0;}
+function set(id,val){var e=document.getElementById(id);if(e)e.value=val;}
+function normalizeNum(s){if(s===null||s===undefined||s==='')return '';return String(s).replace(/\s/g,'').replace(',','.');}
+function migrateVat(v){var n=parseFloat(v);if(n===20)return 22;if(VAT_OPTIONS.indexOf(n)===-1)return DEFAULT_VAT;return n;}
+function triggerDownload(blob,filename){
+  var url=URL.createObjectURL(blob);var a=document.createElement('a');
+  a.style.display='none';a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},200);
+}
+
+function toggleElec(){
+  isElec=!isElec;
+  var t=document.getElementById('elec-track');
+  if(isElec){t.classList.add('on');document.getElementById('elec-sub').textContent='сбор ФТС = 73 860 ₽ фикс.';document.getElementById('elec-note').classList.add('show');}
+  else{t.classList.remove('on');document.getElementById('elec-sub').textContent='сбор ФТС по шкале';document.getElementById('elec-note').classList.remove('show');}
+  recalc();
+}
+
+function setDateMode(mode,btn){
+  dateMode=mode;
+  document.getElementById('toggle-today').classList.toggle('on',mode==='today');
+  document.getElementById('toggle-date').classList.toggle('on',mode==='date');
+  var inp=document.getElementById('rate-date');
+  inp.style.display=mode==='date'?'inline-block':'none';
+  if(mode==='date'){
+    // Устанавливаем сегодняшнюю дату по умолчанию и открываем пикер
+    if(!inp.value){
+      var now=new Date();
+      inp.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+    }
+    setTimeout(function(){inp.showPicker&&inp.showPicker();},50);
+  } else {
+    fetchRates();
+  }
+}
+
+function getCBRDate(){
+  var d;
+  if(dateMode==='date'){
+    var v=document.getElementById('rate-date').value;
+    if(!v)return null;
+    var p=v.split('-');d=p[2]+'/'+p[1]+'/'+p[0];
+  } else {
+    var now=new Date();
+    d=String(now.getDate()).padStart(2,'0')+'/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear();
+  }
+  return d;
+}
+
+function applyRates(xml){
+  var parser=new DOMParser();var doc=parser.parseFromString(xml,'text/xml');
+  var valutes=doc.querySelectorAll('Valute');
+  var rates={};
+  valutes.forEach(function(v){
+    var code=v.querySelector('CharCode').textContent;
+    var nom=parseFloat(v.querySelector('Nominal').textContent)||1;
+    var val=parseFloat(v.querySelector('Value').textContent.replace(',','.'))||0;
+    rates[code]=val/nom;
+  });
+  var date=doc.querySelector('ValCurs')&&doc.querySelector('ValCurs').getAttribute('Date');
+  if(rates.USD){set('rateUSD',rates.USD.toFixed(4));document.getElementById('disp-usd').textContent='ЦБ: '+rates.USD.toFixed(2)+' ₽';}
+  if(rates.CNY){set('rateCNY',rates.CNY.toFixed(4));document.getElementById('disp-cny').textContent='ЦБ: '+rates.CNY.toFixed(4)+' ₽';}
+  if(rates.EUR){set('rateEUR',rates.EUR.toFixed(4));document.getElementById('disp-eur').textContent='ЦБ: '+rates.EUR.toFixed(2)+' ₽';}
+  document.getElementById('rate-source').textContent='ЦБ РФ на '+date;
+  var st=document.getElementById('rate-status');
+  st.textContent='✓ Загружено';setTimeout(function(){st.textContent='';},3000);
+  recalc();
+  return Object.keys(rates).length>0;
+}
+
+function fetchRates(){
+  var st=document.getElementById('rate-status');
+  var d=getCBRDate();
+  if(!d){st.textContent='Выберите дату';return;}
+  st.textContent='Загрузка...';
+  var cbrUrl='https://www.cbr.ru/scripts/XML_daily.asp?date_req='+d;
+  // Пробуем прокси по очереди: corsproxy.io → allorigins → прямой запрос
+  var proxies=[
+    'https://corsproxy.io/?'+encodeURIComponent(cbrUrl),
+    'https://api.allorigins.win/raw?url='+encodeURIComponent(cbrUrl),
+    'https://cors-anywhere.herokuapp.com/'+cbrUrl,
+    cbrUrl // прямой — работает если браузер/сервер разрешает
+  ];
+  var tried=0;
+  function tryNext(){
+    if(tried>=proxies.length){
+      st.textContent='Не удалось загрузить — введите курс вручную';
+      setTimeout(function(){st.textContent='';},5000);
+      return;
+    }
+    var url=proxies[tried++];
+    fetch(url,{signal:AbortSignal.timeout(6000)})
+      .then(function(r){
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        return r.text();
+      })
+      .then(function(xml){
+        if(!applyRates(xml))throw new Error('empty');
+      })
+      .catch(function(){tryNext();});
+  }
+  tryNext();
+}
+
+function getRate(){
+  var cur=document.getElementById('currency').value;
+  if(cur==='usd')return vn('rateUSD')||87.5;
+  if(cur==='cny')return vn('rateCNY')||12;
+  if(cur==='eur')return vn('rateEUR')||95;
+  return 87.5;
+}
+
+var FTS=[[200000,1231],[450000,2462],[1200000,4924],[2700000,13541],[4200000,18465],[5500000,21344],[10000000,49240],[Infinity,73860]];
+function getFTSFee(cv){if(isElec)return 73860;for(var i=0;i<FTS.length;i++){if(cv<=FTS[i][0])return FTS[i][1];}return 73860;}
+function getFTSLabel(cv){if(isElec)return 'радиоэлектроника → фикс.';var L=['до 200т.','200–450т.','450т.–1,2м','1,2–2,7м','2,7–4,2м','4,2–5,5м','5,5–10м','свыше 10м'];for(var i=0;i<FTS.length;i++){if(cv<=FTS[i][0])return L[i];}return L[L.length-1];}
+
+function buildTable(){
+  var tb=document.getElementById('goods-body');tb.innerHTML='';
+  goods.forEach(function(g,i){
+    var vatOpts=VAT_OPTIONS.map(function(r){return'<option value="'+r+'"'+(g.vat===r?' selected':'')+'>'+r+'%</option>';}).join('');
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td class="num">'+(i+1)+'</td>'+
+      '<td><input class="inp" style="min-width:130px;" placeholder="Наименование" value="'+g.name+'" oninput="goods['+i+'].name=this.value"></td>'+
+      '<td><input class="inp" style="font-size:11px;" placeholder="0000000000" value="'+g.tnved+'" oninput="goods['+i+'].tnved=this.value"></td>'+
+      '<td><input class="inp" placeholder="0.00" value="'+(g.price||'')+'" oninput="goods['+i+'].price=parseFloat(this.value.replace(/\\s/g,\'\').replace(\',\',\'.\'))||0;recalc()"></td>'+
+      '<td><input class="inp" placeholder="1" value="'+(g.qty||1)+'" oninput="goods['+i+'].qty=parseFloat(this.value)||1;recalc()"></td>'+
+      '<td><input class="calc" id="lt'+i+'" readonly placeholder="—"></td>'+
+      '<td><input class="inp" placeholder="0" value="'+(g.weight||'')+'" oninput="goods['+i+'].weight=parseFloat(this.value)||0;recalc()"></td>'+
+      '<td><input class="inp" placeholder="0" value="'+(g.duty||'')+'" oninput="goods['+i+'].duty=parseFloat(this.value)||0;recalc()"></td>'+
+      '<td><select class="inp" onchange="goods['+i+'].vat=parseFloat(this.value);recalc()">'+vatOpts+'</select></td>'+
+      '<td>'+(goods.length>1?'<button class="del-btn" onclick="removeGood('+i+')">×</button>':'')+'</td>';
+    tb.appendChild(tr);
+  });
+}
+
+function recalc(){
+  var rate=getRate();
+  var transport=vn('transport'),insPct=vn('insurance-pct'),agentPct=vn('agent-pct');
+  var inco=document.getElementById('incoterms').value;
+  var allocMode=document.getElementById('transport-alloc').value;
+  var totalWeight=0,invoiceTotal=0,cnt=0;
+  goods.forEach(function(g){var lt=g.price*g.qty;invoiceTotal+=lt;totalWeight+=g.weight||0;if(lt>0)cnt++;});
+  goods.forEach(function(g,i){var lt=g.price*g.qty;var el=document.getElementById('lt'+i);if(el)el.value=lt>0?fmt2(lt):'—';});
+  var invoiceRub=invoiceTotal*rate,transportRub=transport*rate;
+  var insRub=invoiceRub*(insPct/100),agentRub=invoiceRub*(agentPct/100);
+  set('transport-rub',transportRub>0?fmtR(Math.round(transportRub)):'');
+  set('insurance-sum',insRub>0?fmtR(Math.round(insRub)):'');
+  set('agent-sum',agentRub>0?fmtR(Math.round(agentRub)):'');
+  var transportBorderRub=inco==='EXW'?transportRub:inco==='FOB'?transportRub*0.7:0;
+  var totalCV=invoiceRub+transportBorderRub+insRub+agentRub;
+  var ftsFee=getFTSFee(totalCV);
+  var totalDuty=0,totalVAT=0,details=[];
+  goods.forEach(function(g,i){
+    if(g.price<=0)return;
+    var lt=g.price*g.qty;
+    var shareCost=invoiceTotal>0?lt/invoiceTotal:0;
+    var shareWeight=totalWeight>0?(g.weight||0)/totalWeight:shareCost;
+    var sh=allocMode==='weight'?shareWeight:shareCost;
+    var cv=lt*rate+transportBorderRub*sh+insRub*sh+agentRub*sh;
+    var duty=cv*(g.duty/100),vat=(cv+duty)*(g.vat/100);
+    totalDuty+=duty;totalVAT+=vat;
+    details.push({name:g.name||('Позиция '+(i+1)),duty:duty,vat:vat,cv:cv,dutyRate:g.duty,vatRate:g.vat});
+  });
+  var totalPayments=totalDuty+totalVAT+ftsFee,grandTotal=invoiceRub+totalPayments;
+  document.getElementById('kpi-cv').textContent=totalCV>0?fmtR(Math.round(totalCV)):'—';
+  document.getElementById('kpi-duty').textContent=totalDuty>0?fmtR(Math.round(totalDuty)):'—';
+  document.getElementById('kpi-vat').textContent=totalVAT>0?fmtR(Math.round(totalVAT)):'—';
+  document.getElementById('kpi-fee').textContent=totalCV>0?fmtR(ftsFee):'—';
+  document.getElementById('kpi-fee-sub').textContent=totalCV>0?getFTSLabel(totalCV):'ПП №1638';
+  document.getElementById('kpi-total').textContent=totalPayments>0?fmtR(Math.round(totalPayments)):'—';
+  document.getElementById('kpi-grand').textContent=grandTotal>0?fmtR(Math.round(grandTotal)):'—';
+  document.getElementById('f-cnt').textContent=cnt;
+  document.getElementById('f-w').textContent=totalWeight>0?fmt2(totalWeight)+' кг':'—';
+  document.getElementById('f-inv').textContent=invoiceTotal>0?fmt2(invoiceTotal)+' | '+fmtR(Math.round(invoiceRub)):'—';
+  document.getElementById('f-duties').textContent=(totalDuty+totalVAT)>0?fmtR(Math.round(totalDuty+totalVAT)):'—';
+  var db=document.getElementById('detail-block');
+  if(details.length>1){
+    var hd='<th style="text-align:left;font-size:11px;color:var(--muted);padding:4px 6px;border-bottom:0.5px solid var(--border);background:var(--auto);">Позиция</th>'+
+      '<th style="text-align:right;font-size:11px;color:var(--muted);padding:4px 6px;border-bottom:0.5px solid var(--border);background:var(--auto);">Там.ст.</th>'+
+      '<th style="text-align:right;font-size:11px;color:var(--muted);padding:4px 6px;border-bottom:0.5px solid var(--border);background:var(--auto);">%пошл.</th>'+
+      '<th style="text-align:right;font-size:11px;color:var(--muted);padding:4px 6px;border-bottom:0.5px solid var(--border);background:var(--auto);">Пошлина</th>'+
+      '<th style="text-align:right;font-size:11px;color:var(--muted);padding:4px 6px;border-bottom:0.5px solid var(--border);background:var(--auto);">%НДС</th>'+
+      '<th style="text-align:right;font-size:11px;color:var(--muted);padding:4px 6px;border-bottom:0.5px solid var(--border);background:var(--auto);">НДС</th>';
+    var rows=details.map(function(d){return'<tr>'+
+      '<td style="padding:4px 6px;font-size:12px;">'+d.name+'</td>'+
+      '<td style="padding:4px 6px;font-size:12px;text-align:right;color:var(--muted);">'+fmtR(Math.round(d.cv))+'</td>'+
+      '<td style="padding:4px 6px;font-size:12px;text-align:right;">'+d.dutyRate+'%</td>'+
+      '<td style="padding:4px 6px;font-size:12px;text-align:right;color:#0C447C;">'+fmtR(Math.round(d.duty))+'</td>'+
+      '<td style="padding:4px 6px;font-size:12px;text-align:right;">'+d.vatRate+'%</td>'+
+      '<td style="padding:4px 6px;font-size:12px;text-align:right;color:#0C447C;">'+fmtR(Math.round(d.vat))+'</td></tr>';}).join('');
+    db.innerHTML='<table style="width:100%;border-collapse:collapse;"><thead><tr>'+hd+'</tr></thead><tbody>'+rows+'</tbody></table>';
+  }else{db.innerHTML='';}
+  lastResult={name:document.getElementById('calc-name').value,currency:document.getElementById('currency').value,
+    rate:rate,inco:inco,goods:JSON.parse(JSON.stringify(goods)),transport:transport,insPct:insPct,agentPct:agentPct,
+    allocMode:allocMode,invoiceRub:invoiceRub,totalCV:totalCV,ftsFee:ftsFee,totalDuty:totalDuty,totalVAT:totalVAT,
+    totalPayments:totalPayments,grandTotal:grandTotal,insRub:insRub,agentRub:agentRub,details:details,isElec:isElec};
+}
+
+function getHistory(){try{return JSON.parse(localStorage.getItem('customs_history_gbs')||'[]');}catch(e){return[];}}
+function saveHistory(h){try{localStorage.setItem('customs_history_gbs',JSON.stringify(h));}catch(e){}}
+function openSaveModal(){var n=document.getElementById('calc-name').value||('Расчёт '+new Date().toLocaleDateString('ru-RU'));document.getElementById('save-name').value=n;document.getElementById('modal-save').style.display='flex';}
+function closeModal(id){document.getElementById(id).style.display='none';}
+function saveToHistory(){
+  var name=document.getElementById('save-name').value||('Расчёт '+new Date().toLocaleDateString('ru-RU'));
+  var h=getHistory();h.unshift({id:Date.now(),name:name,date:new Date().toLocaleString('ru-RU'),data:lastResult});
+  if(h.length>20)h=h.slice(0,20);saveHistory(h);closeModal('modal-save');renderHistory();
+}
+function toggleHistory(){var p=document.getElementById('history-panel');p.style.display=p.style.display==='block'?'none':'block';if(p.style.display==='block')renderHistory();}
+function renderHistory(){
+  var h=getHistory();var el=document.getElementById('history-list');
+  if(!h.length){el.innerHTML='<span style="font-size:12px;color:var(--muted);">Пусто</span>';return;}
+  el.innerHTML=h.map(function(item,i){return'<div class="history-item">'+
+    '<div><div class="history-name">'+item.name+'</div>'+
+    '<div class="history-meta">'+item.date+(item.data.grandTotal?' · '+fmtR(Math.round(item.data.grandTotal)):'')+(item.data.isElec?' · радиоэлектроника':'')+'</div></div>'+
+    '<div style="display:flex;gap:6px;margin-left:auto;">'+
+    '<button class="tb-btn" onclick="loadHistory('+i+')">↶ Загрузить</button>'+
+    '<button class="tb-btn danger" onclick="deleteHistory('+i+')">×</button>'+
+    '</div></div>';}).join('');
+}
+function loadHistory(i){applyState(getHistory()[i].data);}
+function deleteHistory(i){var h=getHistory();h.splice(i,1);saveHistory(h);renderHistory();}
+
+function getState(){return{version:2,
+  name:document.getElementById('calc-name').value,currency:document.getElementById('currency').value,
+  rate:normalizeNum(document.getElementById('rateUSD').value),
+  rateCNY:normalizeNum(document.getElementById('rateCNY').value),
+  rateEUR:normalizeNum(document.getElementById('rateEUR').value),
+  inco:document.getElementById('incoterms').value,
+  transport:normalizeNum(document.getElementById('transport').value),
+  insPct:normalizeNum(document.getElementById('insurance-pct').value),
+  agentPct:normalizeNum(document.getElementById('agent-pct').value),
+  allocMode:document.getElementById('transport-alloc').value,
+  isElec:isElec,goods:JSON.parse(JSON.stringify(goods))};}
+
+function applyState(s){
+  document.getElementById('calc-name').value=s.name||'';
+  document.getElementById('currency').value=s.currency||'usd';
+  if(s.rate)set('rateUSD',normalizeNum(s.rate));
+  if(s.rateCNY)set('rateCNY',normalizeNum(s.rateCNY));
+  if(s.rateEUR)set('rateEUR',normalizeNum(s.rateEUR));
+  document.getElementById('incoterms').value=s.inco||'EXW';
+  set('transport',normalizeNum(s.transport));
+  set('insurance-pct',normalizeNum(s.insPct));
+  set('agent-pct',normalizeNum(s.agentPct));
+  document.getElementById('transport-alloc').value=s.allocMode||'weight';
+  var newElec=!!(s.isElec);if(newElec!==isElec){isElec=!newElec;toggleElec();}
+  var rawGoods=s.goods&&s.goods.length?s.goods:[{name:'',tnved:'',price:0,qty:1,weight:0,duty:0,vat:DEFAULT_VAT}];
+  goods=rawGoods.map(function(g){return{name:g.name||'',tnved:g.tnved||'',
+    price:parseFloat(normalizeNum(g.price))||0,qty:parseFloat(normalizeNum(g.qty))||1,
+    weight:parseFloat(normalizeNum(g.weight))||0,duty:parseFloat(normalizeNum(g.duty))||0,vat:migrateVat(g.vat)};});
+  buildTable();recalc();
+}
+
+function exportJSON(){var s=getState();triggerDownload(new Blob([JSON.stringify(s,null,2)],{type:'application/json'}),(s.name||'расчёт')+'.json');}
+function importJSON(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();
+  r.onload=function(ev){try{applyState(JSON.parse(ev.target.result));}catch(err){alert('Ошибка чтения файла');}};
+  r.readAsText(f);e.target.value='';}
+function copyLink(){
+  var encoded=btoa(unescape(encodeURIComponent(JSON.stringify(getState()))));
+  var url=window.location.href.split('#')[0]+'#data='+encoded;
+  document.getElementById('link-box').textContent=url;document.getElementById('modal-link').style.display='flex';
+}
+function doCopyLink(){var t=document.getElementById('link-box').textContent;
+  if(navigator.clipboard){navigator.clipboard.writeText(t);}
+  else{var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);}
+  closeModal('modal-link');}
+function clearAll(){
+  if(!confirm('Очистить все поля?'))return;
+  ['calc-name','transport','insurance-pct','agent-pct'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('currency').value='usd';document.getElementById('incoterms').value='EXW';
+  document.getElementById('transport-alloc').value='weight';
+  if(isElec){isElec=false;document.getElementById('elec-track').classList.remove('on');
+    document.getElementById('elec-sub').textContent='сбор ФТС по шкале';document.getElementById('elec-note').classList.remove('show');}
+  goods=[{name:'',tnved:'',price:0,qty:1,weight:0,duty:0,vat:DEFAULT_VAT}];
+  buildTable();recalc();
+}
+
+function exportWord(){
+  if(!window.docx){alert('Библиотека docx ещё загружается');return;}
+  var D=window.docx;var r=lastResult;
+  if(!r.totalCV){alert('Заполните данные');return;}
+  var border={style:D.BorderStyle.SINGLE,size:1,color:'CCCCCC'};
+  var borders={top:border,bottom:border,left:border,right:border};
+  var cm={top:80,bottom:80,left:120,right:120};
+  function hCell(t,w){return new D.TableCell({borders:borders,shading:{fill:'D6E4F0',type:D.ShadingType.CLEAR},margins:cm,width:{size:w||1870,type:D.WidthType.DXA},children:[new D.Paragraph({children:[new D.TextRun({text:t,bold:true,size:20,font:'Arial'})]})]});}
+  function dCell(t,w,right){return new D.TableCell({borders:borders,margins:cm,width:{size:w||1870,type:D.WidthType.DXA},children:[new D.Paragraph({alignment:right?D.AlignmentType.RIGHT:D.AlignmentType.LEFT,children:[new D.TextRun({text:t,size:20,font:'Arial'})]})]});}
+  var goodsRows=[new D.TableRow({children:[hCell('Наим.',2800),hCell('Итого',1800),hCell('Вес',900),hCell('Пошл.',900),hCell('НДС',900)]})];
+  (r.goods||[]).forEach(function(g){if(g.price<=0&&!g.name)return;
+    goodsRows.push(new D.TableRow({children:[dCell(g.name||'—',2800),dCell(fmtR(Math.round(g.price*g.qty*(r.rate||87.5))),1800,true),dCell(g.weight?String(g.weight):'—',900,true),dCell(g.duty+'%',900,true),dCell(g.vat+'%',900,true)]}));});
+  var sumRows=[
+    ['Тамож. стоимость',fmtR(Math.round(r.totalCV)),false],
+    ['Пошлина',fmtR(Math.round(r.totalDuty)),false],
+    ['НДС при ввозе',fmtR(Math.round(r.totalVAT)),false],
+    ['Сбор ФТС'+(r.isElec?' (радиоэлектроника, фикс.)':' (ПП №1638)'),fmtR(r.ftsFee),false],
+    ['ИТОГО там. платежи',fmtR(Math.round(r.totalPayments)),true],
+    ['Инвойс + таможня',fmtR(Math.round(r.grandTotal)),true]];
+  var sumTableRows=sumRows.map(function(row){return new D.TableRow({children:[
+    new D.TableCell({borders:borders,margins:cm,shading:row[2]?{fill:'EAF3DE',type:D.ShadingType.CLEAR}:undefined,width:{size:5580,type:D.WidthType.DXA},children:[new D.Paragraph({children:[new D.TextRun({text:row[0],bold:row[2],size:20,font:'Arial'})]})] }),
+    new D.TableCell({borders:borders,margins:cm,shading:row[2]?{fill:'EAF3DE',type:D.ShadingType.CLEAR}:undefined,width:{size:3780,type:D.WidthType.DXA},children:[new D.Paragraph({alignment:D.AlignmentType.RIGHT,children:[new D.TextRun({text:row[1],bold:row[2],size:20,font:'Arial'})]})] })]});});
+  var doc=new D.Document({styles:{default:{document:{run:{font:'Arial',size:22}}}},sections:[{
+    properties:{page:{size:{width:11906,height:16838},margin:{top:1134,right:1134,bottom:1134,left:1134}}},
+    children:[
+      new D.Paragraph({children:[new D.TextRun({text:'GBS Broker',bold:true,size:28,color:'2A87C7',font:'Arial'}),new D.TextRun({text:'  |  ',size:24,color:'AAAAAA',font:'Arial'}),new D.TextRun({text:'Расчёт таможенных платежей'+(r.name?' — '+r.name:''),bold:true,size:24,font:'Arial'})],spacing:{after:60}}),
+      new D.Paragraph({children:[new D.TextRun({text:'gbs-broker.ru',size:18,color:'2A87C7',font:'Arial'}),new D.TextRun({text:'   •   '+new Date().toLocaleDateString('ru-RU')+' · '+r.inco+' · Курс: '+fmtR(r.rate||87.5)+' · НДС 22%'+(r.isElec?' · радиоэлектроника':''),size:18,color:'888888',font:'Arial'})],spacing:{after:60}}),
+      new D.Paragraph({border:{bottom:{style:D.BorderStyle.SINGLE,size:6,color:'2A87C7'}},children:[new D.TextRun({text:''})],spacing:{after:240}}),
+      new D.Paragraph({children:[new D.TextRun({text:'Товары',bold:true,size:22,font:'Arial'})],spacing:{after:80}}),
+      new D.Table({width:{size:9300,type:D.WidthType.DXA},columnWidths:[2800,1800,900,900,900],rows:goodsRows}),
+      new D.Paragraph({children:[new D.TextRun({text:''})],spacing:{after:200}}),
+      new D.Paragraph({children:[new D.TextRun({text:'Итоги',bold:true,size:22,font:'Arial'})],spacing:{after:80}}),
+      new D.Table({width:{size:9360,type:D.WidthType.DXA},columnWidths:[5580,3780],rows:sumTableRows}),
+      new D.Paragraph({children:[new D.TextRun({text:'Состав там. стоимости: Инвойс '+fmtR(Math.round(r.invoiceRub))+', Фрахт '+fmtR(Math.round((r.transport||0)*(r.rate||87.5)))+', Страховка '+fmtR(Math.round(r.insRub||0))+', Агент '+fmtR(Math.round(r.agentRub||0)),size:18,color:'444441',font:'Arial'})],spacing:{before:160}})
+    ]
+  }]});
+  D.Packer.toBlob(doc).then(function(blob){
+    triggerDownload(blob,('таможенные_платежи'+(r.name?'_'+r.name:'')).replace(/\s+/g,'_')+'.docx');
+  });
+}
+
+(function(){
+  try{var h=window.location.hash;if(h&&h.indexOf('#data=')===0){applyState(JSON.parse(decodeURIComponent(escape(atob(h.slice(6))))));return;}}catch(e){}
+  fetchRates();
+})();
+buildTable();recalc();
+</script>
+</body>
+</html>
