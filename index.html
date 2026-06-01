@@ -270,10 +270,10 @@ input.calc{display:block;width:100%;border-radius:var(--radius-sm);padding:6px 1
         <th style="width:24px;">#</th>
         <th style="min-width:150px;">Наименование</th>
         <th style="width:90px;">Код ТН ВЭД</th>
-        <th style="width:78px;">Цена</th>
-        <th style="width:54px;">Кол-во</th>
+        <th style="width:95px;">Цена</th>
+        <th style="width:90px;">Кол-во</th>
         <th style="width:74px;">Итого</th>
-        <th style="width:60px;">Вес,кг</th>
+        <th style="width:90px;">Вес,кг</th>
         <th style="width:64px;">Пошл,%</th>
         <th style="width:66px;">НДС,%</th>
         <th style="width:24px;"></th>
@@ -466,38 +466,64 @@ function applyRates(xml){
   return Object.keys(rates).length>0;
 }
 
+function fetchWithTimeout(url,ms){
+  var ctrl=new AbortController();
+  var timer=setTimeout(function(){ctrl.abort();},ms);
+  return fetch(url,{signal:ctrl.signal}).then(function(r){
+    clearTimeout(timer);return r;
+  },function(e){clearTimeout(timer);throw e;});
+}
+
+function applyRatesJSON(data){
+  var v=data.Valute;
+  if(!v)return false;
+  var usd=v.USD&&v.USD.Value;
+  var cny=v.CNY&&(v.CNY.Value/v.CNY.Nominal);
+  var eur=v.EUR&&v.EUR.Value;
+  var date=data.Date?data.Date.slice(0,10):'';
+  if(usd){set('rateUSD',usd.toFixed(4));document.getElementById('disp-usd').textContent='ЦБ: '+usd.toFixed(2)+' ₽';}
+  if(cny){set('rateCNY',cny.toFixed(4));document.getElementById('disp-cny').textContent='ЦБ: '+cny.toFixed(4)+' ₽';}
+  if(eur){set('rateEUR',eur.toFixed(4));document.getElementById('disp-eur').textContent='ЦБ: '+eur.toFixed(2)+' ₽';}
+  document.getElementById('rate-source').textContent='ЦБ РФ на '+date;
+  var st=document.getElementById('rate-status');
+  st.textContent='✓ Загружено';setTimeout(function(){st.textContent='';},3000);
+  recalc();
+  return !!(usd||cny||eur);
+}
+
 function fetchRates(){
   var st=document.getElementById('rate-status');
-  var d=getCBRDate();
-  if(!d){st.textContent='Выберите дату';return;}
   st.textContent='Загрузка...';
-  var cbrUrl='https://www.cbr.ru/scripts/XML_daily.asp?date_req='+d;
-  // Пробуем прокси по очереди: corsproxy.io → allorigins → прямой запрос
-  var proxies=[
-    'https://corsproxy.io/?'+encodeURIComponent(cbrUrl),
-    'https://api.allorigins.win/raw?url='+encodeURIComponent(cbrUrl),
-    'https://cors-anywhere.herokuapp.com/'+cbrUrl,
-    cbrUrl // прямой — работает если браузер/сервер разрешает
-  ];
-  var tried=0;
-  function tryNext(){
-    if(tried>=proxies.length){
-      st.textContent='Не удалось загрузить — введите курс вручную';
-      setTimeout(function(){st.textContent='';},5000);
-      return;
-    }
-    var url=proxies[tried++];
-    fetch(url,{signal:AbortSignal.timeout(6000)})
-      .then(function(r){
-        if(!r.ok)throw new Error('HTTP '+r.status);
-        return r.text();
-      })
-      .then(function(xml){
-        if(!applyRates(xml))throw new Error('empty');
-      })
-      .catch(function(){tryNext();});
+  var targetDate=null;
+  if(dateMode==='date'){
+    var v=document.getElementById('rate-date').value;
+    if(!v){st.textContent='Выберите дату';return;}
+    targetDate=v;
   }
-  tryNext();
+  // cbr-xml-daily.ru — CORS-friendly JSON, работает напрямую из браузера
+  var url=targetDate
+    ? 'https://www.cbr-xml-daily.ru/archive/'+targetDate.split('-').join('/')+'/daily_json.js'
+    : 'https://www.cbr-xml-daily.ru/daily_json.js';
+
+  fetchWithTimeout(url,8000)
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(function(data){if(!applyRatesJSON(data))throw new Error('empty');})
+    .catch(function(e){
+      // Фолбэк: corsproxy.io → ЦБ XML
+      var d=getCBRDate();
+      if(!d){st.textContent='Ошибка';return;}
+      var cbrUrl='https://www.cbr.ru/scripts/XML_daily.asp?date_req='+d;
+      fetchWithTimeout('https://corsproxy.io/?'+encodeURIComponent(cbrUrl),8000)
+        .then(function(r){return r.text();})
+        .then(function(xml){
+          if(xml.indexOf('<ValCurs')===-1)throw new Error('not xml');
+          if(!applyRates(xml))throw new Error('empty');
+        })
+        .catch(function(){
+          st.textContent='Не удалось загрузить — введите вручную';
+          setTimeout(function(){st.textContent='';},5000);
+        });
+    });
 }
 
 function getRate(){
@@ -564,10 +590,10 @@ function buildTable(){
     tr.innerHTML='<td class="num">'+(i+1)+'</td>'+
       '<td><input class="inp" style="min-width:130px;" placeholder="Наименование" value="'+g.name+'" oninput="goods['+i+'].name=this.value"></td>'+
       '<td><input class="inp" style="font-size:11px;" placeholder="0000000000" value="'+g.tnved+'" oninput="goods['+i+'].tnved=this.value"></td>'+
-      '<td><input class="inp" placeholder="0.00" value="'+(g.price||'')+'" oninput="goods['+i+'].price=parseFloat(this.value.replace(/\\s/g,\'\').replace(\',\',\'.\'))||0;recalc()"></td>'+
-      '<td><input class="inp" placeholder="1" value="'+(g.qty||1)+'" oninput="goods['+i+'].qty=parseFloat(this.value)||1;recalc()"></td>'+
+      '<td><input class="inp" style="width:100%;" placeholder="0.00" value="'+(g.price||'')+'" oninput="goods['+i+'].price=parseFloat(this.value.replace(/\\s/g,\'\').replace(\',\',\'.\'))||0;recalc()"></td>'+
+      '<td><input class="inp" placeholder="1" style="width:100%;" value="'+(g.qty||1)+'" oninput="goods['+i+'].qty=parseFloat(this.value)||1;recalc()"></td>'+
       '<td><input class="calc" id="lt'+i+'" readonly placeholder="—"></td>'+
-      '<td><input class="inp" placeholder="0" value="'+(g.weight||'')+'" oninput="goods['+i+'].weight=parseFloat(this.value)||0;recalc()"></td>'+
+      '<td><input class="inp" style="width:100%;" placeholder="0" value="'+(g.weight||'')+'" oninput="goods['+i+'].weight=parseFloat(this.value)||0;recalc()"></td>'+
       '<td><input class="inp" placeholder="0" value="'+(g.duty||'')+'" oninput="goods['+i+'].duty=parseFloat(this.value)||0;recalc()"></td>'+
       '<td><select class="inp" onchange="goods['+i+'].vat=parseFloat(this.value);recalc()">'+vatOpts+'</select></td>'+
       '<td>'+(goods.length>1?'<button class="del-btn" onclick="removeGood('+i+')">×</button>':'')+'</td>';
@@ -794,7 +820,7 @@ function exportWord(){
         borders:noBorders,margins:{top:0,bottom:160,left:0,right:200},
         width:{size:hL,type:D.WidthType.DXA},
         children:[
-          para([logoImg,new D.TextRun({text:'  ',font:'Arial',size:20}),run('GBS Broker',{bold:true,sz:30,color:'2A87C7'})],{after:50}),
+          para([logoImg],{after:50}),
           para([run('gbs-broker.ru',{sz:17,color:'2A87C7'})],{after:0})
         ]
       }),
@@ -813,7 +839,7 @@ function exportWord(){
 
   // 1. Товары — колонки выверены под A4 (сумма 9320 < 10206)
   // №(360)|Наим.(2500)|ТН ВЭД(1100)|Цена(900)|Кол-во(600)|Итого cur(1000)|Итого ₽(1200)|Вес(600)|Пошл.(560)|НДС(500)
-  var cw=[394,2138,1205,986,657,1095,1314,657,880,880]; // sum=10206 = full page width
+  var cw=[394,1895,1205,986,657,1095,1314,900,880,880]; // sum=10206 = full page width
   var goodsRows=[new D.TableRow({children:[
     hdr('№',cw[0]),hdr('Наименование',cw[1]),hdr('Код ТН ВЭД',cw[2]),
     hdrR('Цена, '+cur,cw[3]),hdrR('Кол-во',cw[4]),
