@@ -500,25 +500,26 @@ function fetchRates(){
     if(!v){st.textContent='Выберите дату';return;}
     targetDate=v;
   }
-  // cbr-xml-daily.ru — CORS-friendly JSON, работает напрямую из браузера
-  var url=targetDate
-    ? 'https://www.cbr-xml-daily.ru/archive/'+targetDate.split('-').join('/')+'/daily_json.js'
-    : 'https://www.cbr-xml-daily.ru/daily_json.js';
+  // Cloudflare Worker прокси → ЦБ РФ XML
+  var PROXY='https://cbr-proxy.kurov-dmitry.workers.dev';
+  var d=getCBRDate();
+  if(!d){st.textContent='Ошибка даты';return;}
+  var url=PROXY+'/scripts/XML_daily.asp?date_req='+d;
 
   fetchWithTimeout(url,8000)
-    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
-    .then(function(data){if(!applyRatesJSON(data))throw new Error('empty');})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();})
+    .then(function(xml){
+      if(xml.indexOf('<ValCurs')===-1)throw new Error('not xml');
+      if(!applyRates(xml))throw new Error('empty');
+    })
     .catch(function(e){
-      // Фолбэк: corsproxy.io → ЦБ XML
-      var d=getCBRDate();
-      if(!d){st.textContent='Ошибка';return;}
-      var cbrUrl='https://www.cbr.ru/scripts/XML_daily.asp?date_req='+d;
-      fetchWithTimeout('https://corsproxy.io/?'+encodeURIComponent(cbrUrl),8000)
-        .then(function(r){return r.text();})
-        .then(function(xml){
-          if(xml.indexOf('<ValCurs')===-1)throw new Error('not xml');
-          if(!applyRates(xml))throw new Error('empty');
-        })
+      // Фолбэк: cbr-xml-daily.ru JSON
+      var jsonUrl=targetDate
+        ? 'https://www.cbr-xml-daily.ru/archive/'+targetDate.split('-').join('/')+'/daily_json.js'
+        : 'https://www.cbr-xml-daily.ru/daily_json.js';
+      fetchWithTimeout(jsonUrl,8000)
+        .then(function(r){return r.json();})
+        .then(function(data){if(!applyRatesJSON(data))throw new Error('empty');})
         .catch(function(){
           st.textContent='Не удалось загрузить — введите вручную';
           setTimeout(function(){st.textContent='';},5000);
