@@ -212,10 +212,17 @@ input.calc{display:block;width:100%;border-radius:var(--radius-sm);padding:6px 1
       </div>
       <div class="field" style="flex:.5"><div class="flabel">Инкотермс</div>
         <select class="inp" id="incoterms" onchange="recalc()">
-          <option value="EXW">EXW — с завода</option>
-          <option value="FOB">FOB — франко-борт</option>
-          <option value="CIF">CIF — стоим.+страх+фрахт</option>
-          <option value="DAP">DAP/DDP — с доставкой</option>
+          <option value="EXW">EXW — с завода (Ex Works)</option>
+          <option value="FCA">FCA — франко-перевозчик (Free Carrier)</option>
+          <option value="FAS">FAS — франко вдоль борта (Free Alongside Ship)</option>
+          <option value="FOB">FOB — франко борт (Free on Board)</option>
+          <option value="CFR">CFR — стоимость и фрахт (Cost and Freight)</option>
+          <option value="CIF">CIF — стоим.+страх.+фрахт (Cost Insurance Freight)</option>
+          <option value="CPT">CPT — фрахт оплачен до (Carriage Paid To)</option>
+          <option value="CIP">CIP — фрахт+страх. оплачены до (Carriage Insurance Paid)</option>
+          <option value="DPU">DPU — доставка с разгрузкой (Delivered at Place Unloaded)</option>
+          <option value="DAP">DAP — доставка в пункте (Delivered at Place)</option>
+          <option value="DDP">DDP — доставка с оплатой пошлин (Delivered Duty Paid)</option>
         </select>
       </div>
     </div>
@@ -249,7 +256,8 @@ input.calc{display:block;width:100%;border-radius:var(--radius-sm);padding:6px 1
         <div style="font-size:11px;color:var(--muted);margin-top:5px;" id="rate-source">—</div>
       </div>
     </div>
-    <div class="hint info" style="margin-top:10px;">Инкотермс: EXW — 100% фрахта, FOB — ~70%, CIF/DAP — 0%.</div>
+    <div class="hint info" id="inco-hint" style="margin-top:10px;">EXW / FCA / FAS / FOB — фрахт до границы ЕАЭС включается в таможенную стоимость (введите сумму в поле фрахта).</div>
+    <div class="hint warn" id="inco-hint-included" style="margin-top:10px;display:none;">Фрахт и страховка уже включены в цену инвойса — поле фрахта не используется в расчёте таможенной стоимости.</div>
   </div>
 </div>
 
@@ -297,6 +305,15 @@ input.calc{display:block;width:100%;border-radius:var(--radius-sm);padding:6px 1
     <div class="blk">Транспорт до границы ЕАЭС (в валюте инвойса)</div>
     <div class="row">
       <div class="field"><div class="flabel">Фрахт <span class="tag t-in">ввод</span></div><input class="inp" id="transport" placeholder="0" oninput="recalc()"></div>
+      <div class="field" style="flex:.5"><div class="flabel">Валюта фрахта</div>
+        <select class="inp" id="transport-currency" onchange="recalc()">
+          <option value="same">Как инвойс</option>
+          <option value="usd">USD</option>
+          <option value="cny">CNY</option>
+          <option value="eur">EUR</option>
+          <option value="rub">RUB</option>
+        </select>
+      </div>
       <div class="field"><div class="flabel">= в рублях <span class="tag t-calc">авто</span></div><input class="calc" id="transport-rub" readonly placeholder="—"></div>
       <div class="field"><div class="flabel">Распределение</div>
         <select class="inp" id="transport-alloc" onchange="recalc()">
@@ -491,6 +508,50 @@ function getRate(){
   return 87.5;
 }
 
+// Инкотермс: группа A — фрахт входит в там. стоимость, группа B — не входит
+var INCO_A=['EXW','FCA','FAS','FOB'];
+var INCO_B=['CFR','CIF','CPT','CIP','DPU','DAP','DDP'];
+
+function isIncoB(){
+  var inco=document.getElementById('incoterms').value;
+  return INCO_B.indexOf(inco)>=0;
+}
+
+function getFreightRate(){
+  var tc=document.getElementById('transport-currency').value;
+  if(tc==='rub')return 1;
+  if(tc==='same'||tc===document.getElementById('currency').value)return getRate();
+  if(tc==='usd')return vn('rateUSD')||87.5;
+  if(tc==='cny')return vn('rateCNY')||12;
+  if(tc==='eur')return vn('rateEUR')||95;
+  return getRate();
+}
+
+function updateIncoUI(){
+  var b=isIncoB();
+  var tEl=document.getElementById('transport');
+  var tCurEl=document.getElementById('transport-currency');
+  var tRubEl=document.getElementById('transport-rub');
+  var tAllocEl=document.getElementById('transport-alloc');
+  var hintA=document.getElementById('inco-hint');
+  var hintB=document.getElementById('inco-hint-included');
+  if(b){
+    if(tEl)tEl.closest('.field').style.opacity='0.4';
+    if(tCurEl)tCurEl.closest('.field').style.opacity='0.4';
+    if(tRubEl)tRubEl.closest('.field').style.opacity='0.4';
+    if(tAllocEl)tAllocEl.closest('.field').style.opacity='0.4';
+    if(hintA)hintA.style.display='none';
+    if(hintB)hintB.style.display='block';
+  } else {
+    if(tEl)tEl.closest('.field').style.opacity='1';
+    if(tCurEl)tCurEl.closest('.field').style.opacity='1';
+    if(tRubEl)tRubEl.closest('.field').style.opacity='1';
+    if(tAllocEl)tAllocEl.closest('.field').style.opacity='1';
+    if(hintA)hintA.style.display='block';
+    if(hintB)hintB.style.display='none';
+  }
+}
+
 var FTS=[[200000,1231],[450000,2462],[1200000,4924],[2700000,13541],[4200000,18465],[5500000,21344],[10000000,49240],[Infinity,73860]];
 function getFTSFee(cv){if(isElec)return 73860;for(var i=0;i<FTS.length;i++){if(cv<=FTS[i][0])return FTS[i][1];}return 73860;}
 function getFTSLabel(cv){if(isElec)return 'радиоэлектроника → фикс.';var L=['до 200т.','200–450т.','450т.–1,2м','1,2–2,7м','2,7–4,2м','4,2–5,5м','5,5–10м','свыше 10м'];for(var i=0;i<FTS.length;i++){if(cv<=FTS[i][0])return L[i];}return L[L.length-1];}
@@ -522,13 +583,17 @@ function recalc(){
   var totalWeight=0,invoiceTotal=0,cnt=0;
   goods.forEach(function(g){var lt=g.price*g.qty;invoiceTotal+=lt;totalWeight+=g.weight||0;if(lt>0)cnt++;});
   goods.forEach(function(g,i){var lt=g.price*g.qty;var el=document.getElementById('lt'+i);if(el)el.value=lt>0?fmt2(lt):'—';});
-  var invoiceRub=invoiceTotal*rate,transportRub=transport*rate;
+  var invoiceRub=invoiceTotal*rate;
+  var freightRate=getFreightRate();
+  var transportRub=transport*freightRate;
   var insRub=invoiceRub*(insPct/100),agentRub=invoiceRub*(agentPct/100);
   set('transport-rub',transportRub>0?fmtR(Math.round(transportRub)):'');
   set('insurance-sum',insRub>0?fmtR(Math.round(insRub)):'');
   set('agent-sum',agentRub>0?fmtR(Math.round(agentRub)):'');
-  var transportBorderRub=inco==='EXW'?transportRub:inco==='FOB'?transportRub*0.7:0;
+  // Группа B (CFR/CIF/CPT/CIP/DPU/DAP/DDP) — фрахт уже в инвойсе, не добавляем
+  var transportBorderRub=isIncoB()?0:transportRub;
   var totalCV=invoiceRub+transportBorderRub+insRub+agentRub;
+  updateIncoUI();
   var ftsFee=getFTSFee(totalCV);
   var totalDuty=0,totalVAT=0,details=[];
   goods.forEach(function(g,i){
@@ -607,6 +672,7 @@ function getState(){return{version:2,
   rateCNY:normalizeNum(document.getElementById('rateCNY').value),
   rateEUR:normalizeNum(document.getElementById('rateEUR').value),
   inco:document.getElementById('incoterms').value,
+  transportCurrency:document.getElementById('transport-currency').value,
   transport:normalizeNum(document.getElementById('transport').value),
   insPct:normalizeNum(document.getElementById('insurance-pct').value),
   agentPct:normalizeNum(document.getElementById('agent-pct').value),
@@ -620,6 +686,7 @@ function applyState(s){
   if(s.rateCNY)set('rateCNY',normalizeNum(s.rateCNY));
   if(s.rateEUR)set('rateEUR',normalizeNum(s.rateEUR));
   document.getElementById('incoterms').value=s.inco||'EXW';
+  if(s.transportCurrency)document.getElementById('transport-currency').value=s.transportCurrency;
   set('transport',normalizeNum(s.transport));
   set('insurance-pct',normalizeNum(s.insPct));
   set('agent-pct',normalizeNum(s.agentPct));
@@ -660,38 +727,211 @@ function exportWord(){
   if(!window.docx){alert('Библиотека docx ещё загружается');return;}
   var D=window.docx;var r=lastResult;
   if(!r.totalCV){alert('Заполните данные');return;}
-  var border={style:D.BorderStyle.SINGLE,size:1,color:'CCCCCC'};
-  var borders={top:border,bottom:border,left:border,right:border};
-  var cm={top:80,bottom:80,left:120,right:120};
-  function hCell(t,w){return new D.TableCell({borders:borders,shading:{fill:'D6E4F0',type:D.ShadingType.CLEAR},margins:cm,width:{size:w||1870,type:D.WidthType.DXA},children:[new D.Paragraph({children:[new D.TextRun({text:t,bold:true,size:20,font:'Arial'})]})]});}
-  function dCell(t,w,right){return new D.TableCell({borders:borders,margins:cm,width:{size:w||1870,type:D.WidthType.DXA},children:[new D.Paragraph({alignment:right?D.AlignmentType.RIGHT:D.AlignmentType.LEFT,children:[new D.TextRun({text:t,size:20,font:'Arial'})]})]});}
-  var goodsRows=[new D.TableRow({children:[hCell('Наим.',2800),hCell('Итого',1800),hCell('Вес',900),hCell('Пошл.',900),hCell('НДС',900)]})];
-  (r.goods||[]).forEach(function(g){if(g.price<=0&&!g.name)return;
-    goodsRows.push(new D.TableRow({children:[dCell(g.name||'—',2800),dCell(fmtR(Math.round(g.price*g.qty*(r.rate||87.5))),1800,true),dCell(g.weight?String(g.weight):'—',900,true),dCell(g.duty+'%',900,true),dCell(g.vat+'%',900,true)]}));});
-  var sumRows=[
-    ['Тамож. стоимость',fmtR(Math.round(r.totalCV)),false],
-    ['Пошлина',fmtR(Math.round(r.totalDuty)),false],
-    ['НДС при ввозе',fmtR(Math.round(r.totalVAT)),false],
-    ['Сбор ФТС'+(r.isElec?' (радиоэлектроника, фикс.)':' (ПП №1638)'),fmtR(r.ftsFee),false],
-    ['ИТОГО там. платежи',fmtR(Math.round(r.totalPayments)),true],
-    ['Инвойс + таможня',fmtR(Math.round(r.grandTotal)),true]];
-  var sumTableRows=sumRows.map(function(row){return new D.TableRow({children:[
-    new D.TableCell({borders:borders,margins:cm,shading:row[2]?{fill:'EAF3DE',type:D.ShadingType.CLEAR}:undefined,width:{size:5580,type:D.WidthType.DXA},children:[new D.Paragraph({children:[new D.TextRun({text:row[0],bold:row[2],size:20,font:'Arial'})]})] }),
-    new D.TableCell({borders:borders,margins:cm,shading:row[2]?{fill:'EAF3DE',type:D.ShadingType.CLEAR}:undefined,width:{size:3780,type:D.WidthType.DXA},children:[new D.Paragraph({alignment:D.AlignmentType.RIGHT,children:[new D.TextRun({text:row[1],bold:row[2],size:20,font:'Arial'})]})] })]});});
-  var doc=new D.Document({styles:{default:{document:{run:{font:'Arial',size:22}}}},sections:[{
-    properties:{page:{size:{width:11906,height:16838},margin:{top:1134,right:1134,bottom:1134,left:1134}}},
-    children:[
-      new D.Paragraph({children:[new D.TextRun({text:'GBS Broker',bold:true,size:28,color:'2A87C7',font:'Arial'}),new D.TextRun({text:'  |  ',size:24,color:'AAAAAA',font:'Arial'}),new D.TextRun({text:'Расчёт таможенных платежей'+(r.name?' — '+r.name:''),bold:true,size:24,font:'Arial'})],spacing:{after:60}}),
-      new D.Paragraph({children:[new D.TextRun({text:'gbs-broker.ru',size:18,color:'2A87C7',font:'Arial'}),new D.TextRun({text:'   •   '+new Date().toLocaleDateString('ru-RU')+' · '+r.inco+' · Курс: '+fmtR(r.rate||87.5)+' · НДС 22%'+(r.isElec?' · радиоэлектроника':''),size:18,color:'888888',font:'Arial'})],spacing:{after:60}}),
-      new D.Paragraph({border:{bottom:{style:D.BorderStyle.SINGLE,size:6,color:'2A87C7'}},children:[new D.TextRun({text:''})],spacing:{after:240}}),
-      new D.Paragraph({children:[new D.TextRun({text:'Товары',bold:true,size:22,font:'Arial'})],spacing:{after:80}}),
-      new D.Table({width:{size:9300,type:D.WidthType.DXA},columnWidths:[2800,1800,900,900,900],rows:goodsRows}),
-      new D.Paragraph({children:[new D.TextRun({text:''})],spacing:{after:200}}),
-      new D.Paragraph({children:[new D.TextRun({text:'Итоги',bold:true,size:22,font:'Arial'})],spacing:{after:80}}),
-      new D.Table({width:{size:9360,type:D.WidthType.DXA},columnWidths:[5580,3780],rows:sumTableRows}),
-      new D.Paragraph({children:[new D.TextRun({text:'Состав там. стоимости: Инвойс '+fmtR(Math.round(r.invoiceRub))+', Фрахт '+fmtR(Math.round((r.transport||0)*(r.rate||87.5)))+', Страховка '+fmtR(Math.round(r.insRub||0))+', Агент '+fmtR(Math.round(r.agentRub||0)),size:18,color:'444441',font:'Arial'})],spacing:{before:160}})
-    ]
-  }]});
+
+  var cur=(r.currency||'usd').toUpperCase();
+  var rate=r.rate||87.5;
+
+  var PAGE_W=10206; // A4 portrait, margins 850 twip each side
+
+  var brd  ={style:D.BorderStyle.SINGLE,size:1,color:'CCCCCC'};
+  var noBrd={style:D.BorderStyle.NONE,size:0,color:'FFFFFF'};
+  var borders   ={top:brd,bottom:brd,left:brd,right:brd};
+  var noBorders ={top:noBrd,bottom:noBrd,left:noBrd,right:noBrd};
+  var cm={top:70,bottom:70,left:110,right:110};
+  var hdrShade={fill:'D6E4F0',type:D.ShadingType.CLEAR};
+  var totShade={fill:'EAF3DE',type:D.ShadingType.CLEAR};
+  var subShade={fill:'F5F4F0',type:D.ShadingType.CLEAR};
+
+  function run(text,opts){
+    opts=opts||{};
+    return new D.TextRun({text:String(text),bold:!!opts.bold,size:opts.sz||20,
+      color:opts.color||'1A1A18',font:'Arial',italics:!!opts.italic});
+  }
+  function para(runs,opts){
+    opts=opts||{};
+    return new D.Paragraph({
+      alignment:opts.right?D.AlignmentType.RIGHT:D.AlignmentType.LEFT,
+      spacing:{after:opts.after||0,before:opts.before||0},
+      children:Array.isArray(runs)?runs:[runs]
+    });
+  }
+  function cell(text,opts){
+    opts=opts||{};
+    return new D.TableCell({
+      borders:opts.noBorder?noBorders:borders,
+      margins:opts.margin||cm,
+      width:opts.w?{size:opts.w,type:D.WidthType.DXA}:undefined,
+      shading:opts.shade||undefined,
+      columnSpan:opts.span||undefined,
+      verticalAlign:D.VerticalAlign.CENTER,
+      children:[new D.Paragraph({
+        alignment:opts.right?D.AlignmentType.RIGHT:D.AlignmentType.LEFT,
+        spacing:{after:0,before:0},
+        children:[run(text,{bold:opts.bold,sz:opts.sz||19,color:opts.color||'1A1A18'})]
+      })]
+    });
+  }
+  function hdr(t,w){return cell(t,{w:w,shade:hdrShade,bold:true,sz:18,color:'0C447C'});}
+  function hdrR(t,w){return cell(t,{w:w,shade:hdrShade,bold:true,sz:18,color:'0C447C',right:true});}
+  function secTitle(text){
+    return para([run(text,{bold:true,sz:21,color:'1A1A18'})],{after:100,before:260});
+  }
+  function fmt2f(n){return (Math.round(n*100)/100).toFixed(2);}
+
+  // Логотип PNG base64
+  var LOGO_B64='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';
+  var logoImg=new D.ImageRun({data:Uint8Array.from(atob(LOGO_B64),function(c){return c.charCodeAt(0);}),type:'png',transformation:{width:60,height:48}});
+
+  // Шапка: двухколоночная таблица без рамок, синяя линия снизу
+  var hL=Math.round(PAGE_W*0.38), hR=PAGE_W-hL;
+  var headerTable=new D.Table({
+    width:{size:PAGE_W,type:D.WidthType.DXA},
+    layout:"fixed",
+    borders:{top:noBrd,bottom:{style:D.BorderStyle.SINGLE,size:8,color:'2A87C7'},left:noBrd,right:noBrd,insideHorizontal:noBrd,insideVertical:noBrd},
+    columnWidths:[hL,hR],
+    rows:[new D.TableRow({children:[
+      new D.TableCell({
+        borders:noBorders,margins:{top:0,bottom:160,left:0,right:200},
+        width:{size:hL,type:D.WidthType.DXA},
+        children:[
+          para([logoImg,new D.TextRun({text:'  ',font:'Arial',size:20}),run('GBS Broker',{bold:true,sz:30,color:'2A87C7'})],{after:50}),
+          para([run('gbs-broker.ru',{sz:17,color:'2A87C7'})],{after:0})
+        ]
+      }),
+      new D.TableCell({
+        borders:noBorders,margins:{top:0,bottom:160,left:200,right:0},
+        width:{size:hR,type:D.WidthType.DXA},
+        children:[
+          para([run('Расчёт таможенных платежей',{bold:true,sz:24})],{after:30,right:true}),
+          r.name?para([run(r.name,{sz:20,color:'444441'})],{after:20,right:true}):null,
+          para([run(new Date().toLocaleDateString('ru-RU')+' · '+r.inco+' · '+cur+' / '+rate+' ₽',{sz:17,color:'888880'})],{after:14,right:true}),
+          para([run('НДС 22% · '+(r.isElec?'Радиоэлектроника':'Обычные товары'),{sz:17,color:'888880'})],{after:0,right:true})
+        ].filter(Boolean)
+      })
+    ]})]
+  });
+
+  // 1. Товары — колонки выверены под A4 (сумма 9320 < 10206)
+  // №(360)|Наим.(2500)|ТН ВЭД(1100)|Цена(900)|Кол-во(600)|Итого cur(1000)|Итого ₽(1200)|Вес(600)|Пошл.(560)|НДС(500)
+  var cw=[394,2138,1205,986,657,1095,1314,657,880,880]; // sum=10206 = full page width
+  var goodsRows=[new D.TableRow({children:[
+    hdr('№',cw[0]),hdr('Наименование',cw[1]),hdr('Код ТН ВЭД',cw[2]),
+    hdrR('Цена, '+cur,cw[3]),hdrR('Кол-во',cw[4]),
+    hdrR('Итого, '+cur,cw[5]),hdrR('Итого, ₽',cw[6]),
+    hdrR('Вес, кг',cw[7]),hdrR('Пошл.',cw[8]),hdrR('НДС',cw[9])
+  ]})];
+  var tQty=0,tCur=0,tRub=0,tWt=0,gi=0;
+  (r.goods||[]).forEach(function(g){
+    if(g.price<=0&&!g.name)return;
+    gi++;
+    var lc=g.price*g.qty,lr=lc*rate;
+    tQty+=g.qty||0;tCur+=lc;tRub+=lr;tWt+=g.weight||0;
+    goodsRows.push(new D.TableRow({children:[
+      cell(String(gi),{w:cw[0],color:'888880'}),
+      cell(g.name||'—',{w:cw[1]}),
+      cell(g.tnved||'—',{w:cw[2],color:'888880'}),
+      cell(fmt2f(g.price),{w:cw[3],right:true}),
+      cell(String(g.qty||1),{w:cw[4],right:true}),
+      cell(fmt2f(lc),{w:cw[5],right:true}),
+      cell(fmtR(Math.round(lr)),{w:cw[6],right:true}),
+      cell(g.weight?String(g.weight):'—',{w:cw[7],right:true}),
+      cell(g.duty+'%',{w:cw[8],right:true}),
+      cell(g.vat+'%',{w:cw[9],right:true})
+    ]}));
+  });
+  goodsRows.push(new D.TableRow({children:[
+    cell('',{w:cw[0],shade:subShade}),
+    cell('Итого',{w:cw[1],shade:subShade,bold:true}),
+    cell('',{w:cw[2],shade:subShade}),
+    cell('',{w:cw[3],shade:subShade}),
+    cell(tQty+' шт.',{w:cw[4],shade:subShade,right:true,bold:true}),
+    cell(fmt2f(tCur),{w:cw[5],shade:subShade,right:true,bold:true}),
+    cell(fmtR(Math.round(tRub)),{w:cw[6],shade:subShade,right:true,bold:true}),
+    cell(tWt?String(tWt):'—',{w:cw[7],shade:subShade,right:true,bold:true}),
+    cell('',{w:cw[8],shade:subShade}),
+    cell('',{w:cw[9],shade:subShade})
+  ]}));
+  var tW=cw.reduce(function(a,b){return a+b;},0);
+
+  // 2. Состав тамож. стоимости
+  var hw=Math.round(PAGE_W*0.6),vw=PAGE_W-hw;
+  var cvRows=[
+    new D.TableRow({children:[hdr('Составляющая',hw),hdrR('Сумма, ₽',vw)]}),
+    new D.TableRow({children:[cell('Инвойс ('+cur+' → ₽)',{w:hw}),cell(fmtR(Math.round(r.invoiceRub)),{w:vw,right:true})]}),
+    new D.TableRow({children:[cell('Фрахт до границы ЕАЭС',{w:hw}),cell(fmtR(Math.round((r.transport||0)*rate)),{w:vw,right:true})]}),
+    new D.TableRow({children:[cell('Страховка ('+(r.insPct||0)+'%)',{w:hw}),cell(fmtR(Math.round(r.insRub||0)),{w:vw,right:true})]}),
+    new D.TableRow({children:[cell('Услуги фин. агента ('+(r.agentPct||0)+'%)',{w:hw}),cell(fmtR(Math.round(r.agentRub||0)),{w:vw,right:true})]}),
+    new D.TableRow({children:[cell('Таможенная стоимость',{w:hw,shade:subShade,bold:true}),cell(fmtR(Math.round(r.totalCV)),{w:vw,shade:subShade,right:true,bold:true})]})
+  ];
+
+  // 3. Таможенные платежи
+  var payRows=[
+    new D.TableRow({children:[hdr('Платёж',hw),hdrR('Сумма, ₽',vw)]}),
+    new D.TableRow({children:[cell('Таможенная пошлина',{w:hw}),cell(fmtR(Math.round(r.totalDuty)),{w:vw,right:true})]}),
+    new D.TableRow({children:[cell('НДС при ввозе (22%)',{w:hw}),cell(fmtR(Math.round(r.totalVAT)),{w:vw,right:true})]}),
+    new D.TableRow({children:[cell('Сбор ФТС'+(r.isElec?' (радиоэлектроника, фикс.)':' (ПП №1638)'),{w:hw}),cell(fmtR(r.ftsFee),{w:vw,right:true})]}),
+    new D.TableRow({children:[cell('Итого таможенные платежи',{w:hw,shade:totShade,bold:true}),cell(fmtR(Math.round(r.totalPayments)),{w:vw,shade:totShade,right:true,bold:true})]}),
+    new D.TableRow({children:[cell('Инвойс + таможня',{w:hw,shade:totShade,bold:true}),cell(fmtR(Math.round(r.grandTotal)),{w:vw,shade:totShade,right:true,bold:true})]})
+  ];
+
+  // 4. Детализация по позициям (только если >1 позиции)
+  var detailChildren=[];
+  if(r.details&&r.details.length>1){
+    var dw=[3175,1814,1361,794,1361,1701]; // sum=10206 = PAGE_W
+    var detailRows=[new D.TableRow({children:[
+      hdr('Позиция',dw[0]),hdrR('Там. стоимость',dw[1]),
+      hdrR('Пошлина',dw[2]),hdrR('% пошл.',dw[3]),
+      hdrR('НДС',dw[4]),hdrR('Итого платежи',dw[5])
+    ]})];
+    r.details.forEach(function(d){
+      detailRows.push(new D.TableRow({children:[
+        cell(d.name,{w:dw[0]}),
+        cell(fmtR(Math.round(d.cv)),{w:dw[1],right:true}),
+        cell(fmtR(Math.round(d.duty)),{w:dw[2],right:true}),
+        cell(d.dutyRate+'%',{w:dw[3],right:true}),
+        cell(fmtR(Math.round(d.vat)),{w:dw[4],right:true}),
+        cell(fmtR(Math.round(d.duty+d.vat)),{w:dw[5],right:true})
+      ]}));
+    });
+    var tD=r.details.reduce(function(s,d){return s+d.duty;},0);
+    var tV=r.details.reduce(function(s,d){return s+d.vat;},0);
+    detailRows.push(new D.TableRow({children:[
+      cell('Итого',{w:dw[0],shade:subShade,bold:true}),
+      cell(fmtR(Math.round(r.totalCV)),{w:dw[1],shade:subShade,right:true,bold:true}),
+      cell(fmtR(Math.round(tD)),{w:dw[2],shade:subShade,right:true,bold:true}),
+      cell('',{w:dw[3],shade:subShade}),
+      cell(fmtR(Math.round(tV)),{w:dw[4],shade:subShade,right:true,bold:true}),
+      cell(fmtR(Math.round(tD+tV)),{w:dw[5],shade:subShade,right:true,bold:true})
+    ]}));
+    detailChildren=[
+      secTitle('4. Детализация по позициям'),
+      new D.Table({width:{size:PAGE_W,type:D.WidthType.DXA},layout:"fixed",columnWidths:dw,rows:detailRows})
+    ];
+  }
+
+  var doc=new D.Document({
+    styles:{default:{document:{run:{font:'Arial',size:20}}}},
+    sections:[{
+      properties:{page:{size:{width:11906,height:16838},margin:{top:850,right:850,bottom:850,left:850}}},
+      children:[
+        headerTable,
+        para([run('')],{after:0,before:0}),
+        secTitle('1. Товары'),
+        new D.Table({width:{size:tW,type:D.WidthType.DXA},layout:"fixed",columnWidths:cw,rows:goodsRows}),
+        secTitle('2. Состав таможенной стоимости'),
+        new D.Table({width:{size:PAGE_W,type:D.WidthType.DXA},layout:"fixed",columnWidths:[hw,vw],rows:cvRows}),
+        secTitle('3. Таможенные платежи'),
+        new D.Table({width:{size:PAGE_W,type:D.WidthType.DXA},layout:"fixed",columnWidths:[hw,vw],rows:payRows}),
+      ].concat(detailChildren).concat([
+        para([run(
+          'НДС — ФЗ №425-ФЗ от 28.11.2025 (с 01.01.2026)   ·   '+
+          'Сбор ФТС — ПП №1638 от 23.10.2025   ·   Расчёт носит оценочный характер',
+          {sz:15,color:'AAAAAA',italic:true}
+        )],{after:0,before:300})
+      ])
+    }]
+  });
+
   D.Packer.toBlob(doc).then(function(blob){
     triggerDownload(blob,('таможенные_платежи'+(r.name?'_'+r.name:'')).replace(/\s+/g,'_')+'.docx');
   });
@@ -701,7 +941,7 @@ function exportWord(){
   try{var h=window.location.hash;if(h&&h.indexOf('#data=')===0){applyState(JSON.parse(decodeURIComponent(escape(atob(h.slice(6))))));return;}}catch(e){}
   fetchRates();
 })();
-buildTable();recalc();
+buildTable();recalc();updateIncoUI();
 </script>
 </body>
 </html>
